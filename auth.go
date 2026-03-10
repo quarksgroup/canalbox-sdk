@@ -1,31 +1,19 @@
 package canalbox
 
 import (
-	"crypto/tls"
 	"fmt"
 	"io"
 	"net/http"
-	"net/http/cookiejar"
 	"net/url"
 	"strings"
-	"time"
 )
 
 func Login(baseURL, username, password string) (*Client, error) {
-	cfg := Config{BaseURL: baseURL}
-	jar, _ := cookiejar.New(nil)
-
-	client := &Client{
-		cfg: cfg,
-		client: &http.Client{
-			Timeout: 30 * time.Second,
-			Jar:     jar,
-			Transport: &http.Transport{
-				TLSClientConfig:   &tls.Config{},
-				ForceAttemptHTTP2: false,
-			},
-		},
+	if strings.TrimSpace(username) == "" || strings.TrimSpace(password) == "" {
+		return nil, fmt.Errorf("username and password are required")
 	}
+
+	client := NewClient(Config{BaseURL: baseURL})
 
 	loginURL := baseURL + "/PortailDistributeur/login"
 
@@ -91,18 +79,16 @@ func Login(baseURL, username, password string) (*Client, error) {
 	}
 	defer resp.Body.Close()
 
-	for _, c := range client.client.Jar.Cookies(req.URL) {
-		if strings.HasPrefix(c.Name, "__Host-ERIC_PROD") {
-			client.cfg.AuraToken = c.Value
-		}
+	client.updateCookies(resp.Request.URL)
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("read subscription page: %w", err)
 	}
 
-	if client.cfg.AuraToken == "" {
-		io.Copy(io.Discard, resp.Body)
-		return nil, fmt.Errorf("login succeeded but could not extract aura.token")
+	if _, err := client.cacheAuraMetadata(defaultSubscriptionListPageURI, resp.Request.URL, body); err != nil {
+		return nil, err
 	}
-
-	client.cfg.Context = `{"mode":"PROD","fwuid":"YkVKdlZEd2t6eFplVFJNMGN2eVd5UTJEa1N5enhOU3R5QWl2VzNveFZTbGcxMy4tMjE0NzQ4MzY0OC45OTYxNDcy","app":"siteforce:communityApp","loaded":{"APPLICATION@markup://siteforce:communityApp":"1529_lI95rFcxq-le9BLgryC1ew","COMPONENT@markup://forceCommunity:reportChart":"805_A6VaKBntJ5kSj8Xst8h2Mg","COMPONENT@markup://forceCommunity:dashboard":"2174_6iY_-CT5MV4ib9ia3hfuHw","COMPONENT@markup://forceCommunity:objectHome":"2118_6I9SpwBIGLa8ytSlYL6Ujg","COMPONENT@markup://force:inputField":"1404_kTidaTm0Cp3r6gDe1UEI-A"},"dn":[],"globals":{},"uad":true}`
 
 	return client, nil
 }

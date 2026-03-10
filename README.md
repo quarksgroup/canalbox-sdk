@@ -4,6 +4,47 @@
 
 This is a Go SDK for interacting with the Salesforce Experience Cloud portal (Vivendi Africa distributor portal). It provides authentication and subscription management via Aura endpoints without OAuth.
 
+## Renewal Flow
+
+```go
+ctx := context.Background()
+
+client, err := canalbox.Login(baseURL, username, password)
+if err != nil {
+    return err
+}
+
+options, err := client.GetRenewOptionsByBox(ctx, boxNumber)
+if err != nil {
+    return err
+}
+
+offer := options.Offers[0].Name
+preview, err := client.PreviewRenewByBox(ctx, boxNumber, offer, 1)
+if err != nil {
+    return err
+}
+
+if !preview.Success {
+    for _, reason := range preview.Reasons {
+        fmt.Println(reason.Message)
+    }
+}
+
+activation, err := client.ActivateRenewByBox(ctx, boxNumber, offer, 1)
+if err != nil {
+    return err
+}
+
+if !activation.Success {
+    for _, reason := range activation.Reasons {
+        fmt.Println(reason.Message)
+    }
+}
+```
+
+`PreviewRenewByBox` and `ActivateRenewByBox` parse Salesforce nested `returnValue` payloads and expose business errors via `Reasons` (for example: not enough credit).
+
 ## Build & Test
 
 ### Build

@@ -4,24 +4,31 @@ import (
 	"crypto/tls"
 	"net/http"
 	"net/http/cookiejar"
+	"sync"
 	"time"
 )
 
 const DefaultBaseURL = "https://grpvivendiafrica.my.site.com"
 
 type Config struct {
-	BaseURL   string
-	SID       string
-	AuraToken string
-	BrowserID string
-	OrgID     string
-	Context   string
-	PageURI   string
+	BaseURL     string
+	SID         string
+	AuraToken   string
+	BrowserID   string
+	OrgID       string
+	Context     string
+	PageURI     string
+	PageScopeID string
+	RenderCtx   string
 }
 
 type Client struct {
-	cfg    Config
-	client *http.Client
+	cfg                Config
+	client             *http.Client
+	auraMu             sync.Mutex
+	auraCache          map[string]*AuraMetadata
+	auraRequestCounter int64
+	auraActionCounter  int64
 }
 
 func NewClient(cfg Config) *Client {
@@ -41,6 +48,7 @@ func NewClient(cfg Config) *Client {
 				ForceAttemptHTTP2: false,
 			},
 		},
+		auraCache: make(map[string]*AuraMetadata),
 	}
 }
 
