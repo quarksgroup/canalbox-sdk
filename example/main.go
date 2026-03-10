@@ -33,6 +33,13 @@ func main() {
 
 	fmt.Println("Login successful!")
 
+	account, err := client.GetAccountDetails(ctx)
+	if err != nil {
+		fmt.Printf("Could not load account balance: %v\n", err)
+	} else {
+		fmt.Printf("Current account balance: %s\n", strconv.FormatFloat(account.Balance, 'f', -1, 64))
+	}
+
 	boxNumber := promptRequired(reader, "Enter box number")
 	sub, err := client.GetSubscriptionByBoxNumber(boxNumber)
 	if err != nil {
