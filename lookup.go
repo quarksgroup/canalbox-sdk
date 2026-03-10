@@ -23,8 +23,8 @@ func SubscriptionPageURI(subscriptionID, subscriptionNumber string) (string, err
 	return fmt.Sprintf("/PortailDistributeur/s/subscription/%s/%s", subscriptionID, slug), nil
 }
 
-func (c *Client) GetSubscription(searchKey string) ([]Subscription, error) {
-	return c.getSubscription(context.Background(), searchKey)
+func (c *Client) GetSubscription(ctx context.Context, searchKey string) ([]Subscription, error) {
+	return c.getSubscription(ctx, searchKey)
 }
 
 func (c *Client) getSubscription(ctx context.Context, searchKey string) ([]Subscription, error) {
@@ -91,8 +91,8 @@ func (c *Client) getSubscription(ctx context.Context, searchKey string) ([]Subsc
 	return subs, nil
 }
 
-func (c *Client) GetSubscriptionByBoxNumber(boxNumber string) (*Subscription, error) {
-	return c.getSubscriptionByBoxNumber(context.Background(), boxNumber)
+func (c *Client) GetSubscriptionByBoxNumber(ctx context.Context, boxNumber string) (*Subscription, error) {
+	return c.getSubscriptionByBoxNumber(ctx, boxNumber)
 }
 
 func (c *Client) getSubscriptionByBoxNumber(ctx context.Context, boxNumber string) (*Subscription, error) {

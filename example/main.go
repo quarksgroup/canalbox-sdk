@@ -41,7 +41,7 @@ func main() {
 	}
 
 	boxNumber := promptRequired(reader, "Enter box number")
-	sub, err := client.GetSubscriptionByBoxNumber(boxNumber)
+	sub, err := client.GetSubscriptionByBoxNumber(ctx, boxNumber)
 	if err != nil {
 		log.Fatalf("failed to get subscription by box: %v", err)
 	}
