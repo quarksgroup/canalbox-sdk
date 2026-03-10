@@ -23,9 +23,9 @@ func main() {
 	}
 
 	client, err := canalbox.Login(
-		"https://grpvivendiafrica.my.site.com",
 		username,
 		password,
+		nil,
 	)
 	if err != nil {
 		log.Fatalf("Login failed: %v", err)

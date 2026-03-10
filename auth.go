@@ -8,14 +8,26 @@ import (
 	"strings"
 )
 
-func Login(baseURL, username, password string) (*Client, error) {
+const (
+	defaultBaseURL = "https://grpvivendiafrica.my.site.com"
+)
+
+type Options struct {
+	BaseURL *string
+}
+
+func Login(username, password string, opts *Options) (*Client, error) {
 	if strings.TrimSpace(username) == "" || strings.TrimSpace(password) == "" {
 		return nil, fmt.Errorf("username and password are required")
 	}
 
-	client := NewClient(Config{BaseURL: baseURL})
+	baseURL := defaultBaseURL
+	if opts != nil && opts.BaseURL != nil {
+		baseURL = *opts.BaseURL
+	}
 
-	loginURL := baseURL + "/PortailDistributeur/login"
+	client := NewClient(Config{BaseURL: baseURL})
+	loginURL := client.cfg.BaseURL + "/PortailDistributeur/login"
 
 	req, err := http.NewRequest(http.MethodGet, loginURL, nil)
 	if err != nil {
@@ -46,7 +58,10 @@ func Login(baseURL, username, password string) (*Client, error) {
 	}
 	defer resp.Body.Close()
 
-	baseURLParsed, _ := url.Parse(baseURL)
+	baseURLParsed, err := url.Parse(baseURL)
+	if err != nil {
+		return nil, fmt.Errorf("parse base URL: %w", err)
+	}
 	for _, c := range client.client.Jar.Cookies(baseURLParsed) {
 		if c.Name == "sid" {
 			client.cfg.SID = c.Value
