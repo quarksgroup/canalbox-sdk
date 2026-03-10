@@ -33,26 +33,6 @@ type AuraMetadata struct {
 	RenderCtx   string
 }
 
-type auraMessage struct {
-	Actions []auraAction `json:"actions"`
-}
-
-type auraAction struct {
-	Id                string           `json:"id"`
-	Descriptor        string           `json:"descriptor"`
-	CallingDescriptor string           `json:"callingDescriptor"`
-	Params            auraActionParams `json:"params"`
-}
-
-type auraActionParams struct {
-	Namespace      string `json:"namespace"`
-	Classname      string `json:"classname"`
-	Method         string `json:"method"`
-	Params         any    `json:"params"`
-	Cacheable      bool   `json:"cacheable"`
-	IsContinuation bool   `json:"isContinuation"`
-}
-
 func (c *Client) ensureAuraMetadata(pageURI string) (*AuraMetadata, error) {
 	normalized := normalizePageURI(pageURI)
 	c.auraMu.Lock()
@@ -203,27 +183,32 @@ func extractPageScopeID(body []byte) string {
 }
 
 func (c *Client) doAuraAction(ctx context.Context, pageURI, className, method string, params any) (*Response, error) {
+	action := map[string]any{
+		"id":                fmt.Sprintf("%d;a", atomic.AddInt64(&c.auraActionCounter, 1)),
+		"descriptor":        "aura://ApexActionController/ACTION$execute",
+		"callingDescriptor": "UNKNOWN",
+		"params": map[string]any{
+			"namespace":      "",
+			"classname":      className,
+			"method":         method,
+			"params":         params,
+			"cacheable":      false,
+			"isContinuation": false,
+		},
+	}
+
+	ldsEndpoint := fmt.Sprintf("ApexActionController.execute:%s.%s", className, method)
+	return c.doAuraRequest(ctx, pageURI, "aura.ApexAction.execute=1", action, ldsEndpoint)
+}
+
+func (c *Client) doAuraRequest(ctx context.Context, pageURI, queryParam string, action map[string]any, ldsEndpoint string) (*Response, error) {
 	ctx = ensureContext(ctx)
 	meta, err := c.ensureAuraMetadata(pageURI)
 	if err != nil {
 		return nil, err
 	}
 
-	action := auraAction{
-		Id:                fmt.Sprintf("%d;a", atomic.AddInt64(&c.auraActionCounter, 1)),
-		Descriptor:        "aura://ApexActionController/ACTION$execute",
-		CallingDescriptor: "UNKNOWN",
-		Params: auraActionParams{
-			Namespace:      "",
-			Classname:      className,
-			Method:         method,
-			Params:         params,
-			Cacheable:      false,
-			IsContinuation: false,
-		},
-	}
-
-	message := auraMessage{Actions: []auraAction{action}}
+	message := map[string]any{"actions": []map[string]any{action}}
 	data, err := json.Marshal(message)
 	if err != nil {
 		return nil, fmt.Errorf("marshal aura message: %w", err)
@@ -235,7 +220,7 @@ func (c *Client) doAuraAction(ctx context.Context, pageURI, className, method st
 	form.Set("aura.pageURI", meta.PageURI)
 	form.Set("aura.token", c.cfg.AuraToken)
 
-	endpoint := fmt.Sprintf("%s/PortailDistributeur/s/sfsites/aura?r=%d&aura.ApexAction.execute=1", c.cfg.BaseURL, atomic.AddInt64(&c.auraRequestCounter, 1))
+	endpoint := fmt.Sprintf("%s/PortailDistributeur/s/sfsites/aura?r=%d&%s", c.cfg.BaseURL, atomic.AddInt64(&c.auraRequestCounter, 1), queryParam)
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint, strings.NewReader(form.Encode()))
 	if err != nil {
 		return nil, fmt.Errorf("create aura POST: %w", err)
@@ -246,7 +231,9 @@ func (c *Client) doAuraAction(ctx context.Context, pageURI, className, method st
 	req.Header.Set("Origin", c.cfg.BaseURL)
 	req.Header.Set("Referer", c.cfg.BaseURL+meta.PageURI)
 	req.Header.Set("priority", "u=1, i")
-	req.Header.Set("x-sfdc-lds-endpoints", fmt.Sprintf("ApexActionController.execute:%s.%s", className, method))
+	if ldsEndpoint != "" {
+		req.Header.Set("x-sfdc-lds-endpoints", ldsEndpoint)
+	}
 	req.Header.Set("x-sfdc-page-scope-id", meta.PageScopeID)
 	req.Header.Set("x-sfdc-request-id", fmt.Sprintf("%016x", time.Now().UnixNano()))
 	req.Header.Set("dnt", "1")

@@ -24,10 +24,10 @@ func SubscriptionPageURI(subscriptionID, subscriptionNumber string) (string, err
 }
 
 func (c *Client) GetSubscription(searchKey string) ([]Subscription, error) {
-	return c.GetSubscriptionContext(context.Background(), searchKey)
+	return c.getSubscription(context.Background(), searchKey)
 }
 
-func (c *Client) GetSubscriptionContext(ctx context.Context, searchKey string) ([]Subscription, error) {
+func (c *Client) getSubscription(ctx context.Context, searchKey string) ([]Subscription, error) {
 	ctx = ensureContext(ctx)
 	params := map[string]any{"searchKey": searchKey}
 
@@ -42,7 +42,7 @@ func (c *Client) GetSubscriptionContext(ctx context.Context, searchKey string) (
 	}
 
 	var rawSubs []map[string]any
-	if err := decodeReturnValue(action.ReturnValue.Value, &rawSubs); err != nil {
+	if err := decodeReturnValue(action.ReturnValue, &rawSubs); err != nil {
 		return nil, fmt.Errorf("parse subscription list: %w", err)
 	}
 
@@ -92,16 +92,16 @@ func (c *Client) GetSubscriptionContext(ctx context.Context, searchKey string) (
 }
 
 func (c *Client) GetSubscriptionByBoxNumber(boxNumber string) (*Subscription, error) {
-	return c.GetSubscriptionByBoxNumberContext(context.Background(), boxNumber)
+	return c.getSubscriptionByBoxNumber(context.Background(), boxNumber)
 }
 
-func (c *Client) GetSubscriptionByBoxNumberContext(ctx context.Context, boxNumber string) (*Subscription, error) {
+func (c *Client) getSubscriptionByBoxNumber(ctx context.Context, boxNumber string) (*Subscription, error) {
 	requested := normalizeBoxNumber(boxNumber)
 	if requested == "" {
 		return nil, fmt.Errorf("box number is required")
 	}
 
-	subs, err := c.GetSubscriptionContext(ctx, requested)
+	subs, err := c.getSubscription(ctx, requested)
 	if err != nil {
 		return nil, err
 	}

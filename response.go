@@ -9,18 +9,13 @@ type APIError struct {
 	Message string `json:"message"`
 }
 
-type ReturnValue struct {
-	Value     json.RawMessage `json:"returnValue"`
-	Cacheable bool            `json:"cacheable"`
-}
-
 type Action struct {
-	Id                string      `json:"id"`
-	Descriptor        string      `json:"descriptor"`
-	CallingDescriptor string      `json:"callingDescriptor"`
-	ReturnValue       ReturnValue `json:"returnValue"`
-	Error             []APIError  `json:"error"`
-	State             string      `json:"state"`
+	Id                string          `json:"id"`
+	Descriptor        string          `json:"descriptor"`
+	CallingDescriptor string          `json:"callingDescriptor"`
+	ReturnValue       json.RawMessage `json:"returnValue"`
+	Error             []APIError      `json:"error"`
+	State             string          `json:"state"`
 }
 
 type Response struct {

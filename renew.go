@@ -8,7 +8,7 @@ import (
 )
 
 func (c *Client) GetRenewOptionsByBox(ctx context.Context, boxNumber string) (*BoxRenewOptions, error) {
-	sub, err := c.GetSubscriptionByBoxNumberContext(ctx, boxNumber)
+	sub, err := c.getSubscriptionByBoxNumber(ctx, boxNumber)
 	if err != nil {
 		return nil, err
 	}
@@ -52,7 +52,7 @@ func (c *Client) GetAvailableRenewOptions(ctx context.Context, pageURI string, r
 	}
 
 	var result RenewOptionsResponse
-	if err := decodeReturnValue(action.ReturnValue.Value, &result); err != nil {
+	if err := decodeReturnValue(action.ReturnValue, &result); err != nil {
 		return nil, fmt.Errorf("parse renew options: %w", err)
 	}
 
@@ -174,7 +174,7 @@ func (c *Client) handlePreviewAndRenew(ctx context.Context, pageURI string, req 
 	}
 
 	var result RenewPreviewResult
-	if err := decodeReturnValue(action.ReturnValue.Value, &result); err != nil {
+	if err := decodeReturnValue(action.ReturnValue, &result); err != nil {
 		return nil, fmt.Errorf("parse preview/activation result: %w", err)
 	}
 
