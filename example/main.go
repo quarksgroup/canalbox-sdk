@@ -23,6 +23,7 @@ func main() {
 	}
 
 	client, err := canalbox.Login(
+		ctx,
 		username,
 		password,
 		nil,

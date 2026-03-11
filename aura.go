@@ -255,12 +255,22 @@ func (c *Client) doAuraRequest(ctx context.Context, pageURI, queryParam string, 
 	if err != nil {
 		return nil, fmt.Errorf("read aura response: %w", err)
 	}
+	c.updateCookies(resp.Request.URL)
+	bodyText := string(body)
 	if resp.StatusCode != http.StatusOK {
+		if isSessionExpiredStatus(resp.StatusCode) || isSessionExpiredMessage(bodyText) {
+			return nil, wrapSessionExpired(fmt.Sprintf("aura response status %d", resp.StatusCode))
+		}
+
 		return nil, fmt.Errorf("aura response status %d: %s", resp.StatusCode, string(body))
 	}
 
 	var response Response
 	if err := json.Unmarshal(body, &response); err != nil {
+		if isSessionExpiredMessage(bodyText) || strings.Contains(strings.ToLower(bodyText), "/portaildistributeur/login") {
+			return nil, wrapSessionExpired("redirected to login")
+		}
+
 		return nil, fmt.Errorf("parse aura response: %w", err)
 	}
 

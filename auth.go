@@ -1,6 +1,7 @@
 package canalbox
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"net/http"
@@ -16,27 +17,56 @@ type Options struct {
 	BaseURL *string
 }
 
-func Login(username, password string, opts *Options) (*Client, error) {
-	if strings.TrimSpace(username) == "" || strings.TrimSpace(password) == "" {
-		return nil, fmt.Errorf("username and password are required")
-	}
-
+func Login(ctx context.Context, username, password string, opts *Options) (*Client, error) {
 	baseURL := defaultBaseURL
 	if opts != nil && opts.BaseURL != nil {
 		baseURL = *opts.BaseURL
 	}
 
 	client := NewClient(Config{BaseURL: baseURL})
-	loginURL := client.cfg.BaseURL + "/PortailDistributeur/login"
-
-	req, err := http.NewRequest(http.MethodGet, loginURL, nil)
-	if err != nil {
-		return nil, fmt.Errorf("create login: %w", err)
+	if err := client.login(ctx, username, password); err != nil {
+		return nil, err
 	}
 
-	resp, err := client.client.Do(req)
+	return client, nil
+}
+
+func (c *Client) Refresh(ctx context.Context) error {
+	c.authMu.Lock()
+	defer c.authMu.Unlock()
+
+	if strings.TrimSpace(c.cfg.Username) == "" || strings.TrimSpace(c.cfg.Password) == "" {
+		return fmt.Errorf("cannot refresh session: missing credentials")
+	}
+
+	c.auraMu.Lock()
+	c.auraCache = make(map[string]*AuraMetadata)
+	c.auraMu.Unlock()
+
+	return c.login(ctx, c.cfg.Username, c.cfg.Password)
+}
+
+func (c *Client) login(ctx context.Context, username, password string) error {
+	ctx = ensureContext(ctx)
+	username = strings.TrimSpace(username)
+	password = strings.TrimSpace(password)
+	if username == "" || password == "" {
+		return fmt.Errorf("username and password are required")
+	}
+
+	c.cfg.Username = username
+	c.cfg.Password = password
+
+	loginURL := c.cfg.BaseURL + "/PortailDistributeur/login"
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, loginURL, nil)
 	if err != nil {
-		return nil, fmt.Errorf("login GET request: %w", err)
+		return fmt.Errorf("create login: %w", err)
+	}
+
+	resp, err := c.client.Do(req)
+	if err != nil {
+		return fmt.Errorf("login GET request: %w", err)
 	}
 	io.Copy(io.Discard, resp.Body)
 	resp.Body.Close()
@@ -46,64 +76,69 @@ func Login(username, password string, opts *Options) (*Client, error) {
 	form.Add("pw", password)
 	form.Add("username", username)
 
-	req, err = http.NewRequest(http.MethodPost, loginURL, strings.NewReader(form.Encode()))
+	req, err = http.NewRequestWithContext(ctx, http.MethodPost, loginURL, strings.NewReader(form.Encode()))
 	if err != nil {
-		return nil, fmt.Errorf("create POST request: %w", err)
+		return fmt.Errorf("create POST request: %w", err)
 	}
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 
-	resp, err = client.client.Do(req)
+	resp, err = c.client.Do(req)
 	if err != nil {
-		return nil, fmt.Errorf("login POST request: %w", err)
+		return fmt.Errorf("login POST request: %w", err)
 	}
 	defer resp.Body.Close()
 
-	baseURLParsed, err := url.Parse(baseURL)
+	baseURLParsed, err := url.Parse(c.cfg.BaseURL)
 	if err != nil {
-		return nil, fmt.Errorf("parse base URL: %w", err)
+		return fmt.Errorf("parse base URL: %w", err)
 	}
-	for _, c := range client.client.Jar.Cookies(baseURLParsed) {
-		if c.Name == "sid" {
-			client.cfg.SID = c.Value
+	for _, ck := range c.client.Jar.Cookies(baseURLParsed) {
+		if ck.Name == "sid" {
+			c.cfg.SID = ck.Value
 		}
-		if c.Name == "BrowserId" {
-			client.cfg.BrowserID = c.Value
+		if ck.Name == "BrowserId" {
+			c.cfg.BrowserID = ck.Value
 		}
-		if c.Name == "oid" {
-			client.cfg.OrgID = c.Value
+		if ck.Name == "oid" {
+			c.cfg.OrgID = ck.Value
 		}
-		if strings.HasPrefix(c.Name, "__Host-ERIC_PROD") {
-			client.cfg.AuraToken = c.Value
+		if strings.HasPrefix(ck.Name, "__Host-ERIC_PROD") {
+			c.cfg.AuraToken = ck.Value
 		}
 	}
 
-	if client.cfg.SID == "" {
-		return nil, fmt.Errorf("login failed: no SID cookie received")
+	if c.cfg.SID == "" {
+		return fmt.Errorf("login failed: no SID cookie received")
 	}
 
-	subURL := baseURL + "/PortailDistributeur/s/subscription/Zuora__Subscription__c/Default?tabset-c5778=2"
-	req, err = http.NewRequest(http.MethodGet, subURL, nil)
+	subURL := c.cfg.BaseURL + "/PortailDistributeur/s/subscription/Zuora__Subscription__c/Default?tabset-c5778=2"
+	req, err = http.NewRequestWithContext(ctx, http.MethodGet, subURL, nil)
 	if err != nil {
-		return nil, fmt.Errorf("create subscription request: %w", err)
+		return fmt.Errorf("create subscription request: %w", err)
 	}
-	req.Header.Set("Referer", baseURL+"/PortailDistributeur/s/")
+	req.Header.Set("Referer", c.cfg.BaseURL+"/PortailDistributeur/s/")
 
-	resp, err = client.client.Do(req)
+	resp, err = c.client.Do(req)
 	if err != nil {
-		return nil, fmt.Errorf("subscription page request: %w", err)
+		return fmt.Errorf("subscription page request: %w", err)
 	}
 	defer resp.Body.Close()
 
-	client.updateCookies(resp.Request.URL)
+	c.updateCookies(resp.Request.URL)
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return nil, fmt.Errorf("read subscription page: %w", err)
+		return fmt.Errorf("read subscription page: %w", err)
 	}
 
-	if _, err := client.cacheAuraMetadata(defaultSubscriptionListPageURI, resp.Request.URL, body); err != nil {
-		return nil, err
+	meta, err := c.cacheAuraMetadata(defaultSubscriptionListPageURI, resp.Request.URL, body)
+	if err != nil {
+		return err
 	}
 
-	return client, nil
+	c.auraMu.Lock()
+	c.auraCache[defaultSubscriptionListPageURI] = meta
+	c.auraMu.Unlock()
+
+	return nil
 }

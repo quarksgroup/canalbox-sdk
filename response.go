@@ -30,6 +30,10 @@ func firstAction(resp *Response) (*Action, error) {
 	action := resp.Actions[0]
 	if action.State != "SUCCESS" {
 		if len(action.Error) > 0 {
+			if isSessionExpiredMessage(action.Error[0].Message) {
+				return nil, wrapSessionExpired(action.Error[0].Message)
+			}
+
 			return nil, fmt.Errorf("aura action error: %s", action.Error[0].Message)
 		}
 		return nil, fmt.Errorf("aura action in state %q", action.State)

@@ -12,6 +12,8 @@ const DefaultBaseURL = "https://grpvivendiafrica.my.site.com"
 
 type Config struct {
 	BaseURL     string
+	Username    string
+	Password    string
 	SID         string
 	AuraToken   string
 	BrowserID   string
@@ -25,6 +27,7 @@ type Config struct {
 type Client struct {
 	cfg                Config
 	client             *http.Client
+	authMu             sync.Mutex
 	auraMu             sync.Mutex
 	auraCache          map[string]*AuraMetadata
 	auraRequestCounter int64
