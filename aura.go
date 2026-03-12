@@ -3,6 +3,7 @@ package canalbox
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"math/rand"
@@ -202,6 +203,22 @@ func (c *Client) doAuraAction(ctx context.Context, pageURI, className, method st
 }
 
 func (c *Client) doAuraRequest(ctx context.Context, pageURI, queryParam string, action map[string]any, ldsEndpoint string) (*Response, error) {
+	response, err := c.executeAuraRequest(ctx, pageURI, queryParam, action, ldsEndpoint)
+	if err == nil {
+		return response, nil
+	}
+	if !errors.Is(err, ErrSessionExpired) {
+		return nil, err
+	}
+
+	if refreshErr := c.Refresh(ctx); refreshErr != nil {
+		return nil, fmt.Errorf("refresh session after aura failure: %w", refreshErr)
+	}
+
+	return c.executeAuraRequest(ctx, pageURI, queryParam, action, ldsEndpoint)
+}
+
+func (c *Client) executeAuraRequest(ctx context.Context, pageURI, queryParam string, action map[string]any, ldsEndpoint string) (*Response, error) {
 	ctx = ensureContext(ctx)
 	meta, err := c.ensureAuraMetadata(pageURI)
 	if err != nil {
@@ -274,7 +291,27 @@ func (c *Client) doAuraRequest(ctx context.Context, pageURI, queryParam string, 
 		return nil, fmt.Errorf("parse aura response: %w", err)
 	}
 
+	if message, ok := sessionExpiredActionMessage(&response); ok {
+		return nil, wrapSessionExpired(message)
+	}
+
 	return &response, nil
+}
+
+func sessionExpiredActionMessage(response *Response) (string, bool) {
+	if response == nil {
+		return "", false
+	}
+
+	for _, action := range response.Actions {
+		for _, apiErr := range action.Error {
+			if isSessionExpiredMessage(apiErr.Message) {
+				return apiErr.Message, true
+			}
+		}
+	}
+
+	return "", false
 }
 
 func randomHex(length int) string {

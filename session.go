@@ -36,7 +36,7 @@ func isSessionExpiredMessage(message string) bool {
 		"invalid session id",
 		"not authenticated",
 		"login required",
-		"You do not have access",
+		"you do not have access",
 		"not permitted",
 	}
 
