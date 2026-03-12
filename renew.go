@@ -205,7 +205,7 @@ func (c *Client) buildRenewRequestForBox(ctx context.Context, boxNumber, offerNa
 		OfferCanal:        offer.Name,
 		BizaOrderID:       buildOrderID(info.Subscription.SubscriptionNumber),
 		WithRenew:         true,
-		ImmediateUpgrade:  false,
+		ImmediateUpgrade:  true,
 	}
 
 	return req, &info.Subscription, nil
