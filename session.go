@@ -36,7 +36,7 @@ func isSessionExpiredMessage(message string) bool {
 		"invalid session id",
 		"not authenticated",
 		"login required",
-		"you do not have access to this object",
+		"You do not have access",
 	}
 
 	for _, check := range checks {
