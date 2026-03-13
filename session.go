@@ -36,8 +36,9 @@ func isSessionExpiredMessage(message string) bool {
 		"invalid session id",
 		"not authenticated",
 		"login required",
-		"you do not have access",
 		"not permitted",
+		"you do not have access",
+		"response has no chart data",
 	}
 
 	for _, check := range checks {
